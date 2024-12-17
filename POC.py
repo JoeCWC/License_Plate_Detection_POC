@@ -29,7 +29,7 @@ def import_image(input_image):
         print("[ERROR]", f"The file '{input_file}' does not exist.")
         exit()
 
-def find_contours(image):
+def find_contours_by_joe(image):
     # Resize image
     image = imutils.resize(image, width=500)
     img = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
@@ -111,13 +111,113 @@ def show_detection(gray,approx,NumberPlateCnt,ROI,image):
     fig.tight_layout()
     plt.show()
 
+# Distance between (x1, y1) and (x2, y2)
+def dist(x1, x2, y1, y2):
+    return ((x1-x2)**2+(y1-y2)**2)**0.5
+
+
+# Match contours to license plate or character template
+def find_contours(dimensions, img):
+    # Find all contours in the image
+    cntrs, _ = cv2.findContours(img.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+
+    # Retrieve potential dimensions
+    lower_width = dimensions[0]
+    upper_width = dimensions[1]
+    lower_height = dimensions[2]
+    upper_height = dimensions[3]
+
+    # Check largest 5 or  15 contours for license plate or character respectively
+    cntrs = sorted(cntrs, key=cv2.contourArea, reverse=True)[:15]
+
+    ii = cv2.imread('contour.jpg')
+
+    x_cntr_list = []
+    target_contours = []
+    img_res = []
+    for cntr in cntrs:
+        # detects contour in binary image and returns the coordinates of rectangle enclosing it
+        intX, intY, intWidth, intHeight = cv2.boundingRect(cntr)
+
+        # checking the dimensions of the contour to filter out the characters by contour's size
+        if intWidth > lower_width and intWidth < upper_width and intHeight > lower_height and intHeight < upper_height:
+            x_cntr_list.append(
+                intX)  # stores the x coordinate of the character's contour, to used later for indexing the contours
+
+            char_copy = np.zeros((44, 24))
+            # extracting each character using the enclosing rectangle's coordinates.
+            char = img[intY:intY + intHeight, intX:intX + intWidth]
+            char = cv2.resize(char, (20, 40))
+
+            cv2.rectangle(ii, (intX, intY), (intWidth + intX, intY + intHeight), (50, 21, 200), 2)
+            plt.imshow(ii, cmap='gray')
+            plt.title('Predict Segments')
+
+            # Make result formatted for classification: invert colors
+            char = cv2.subtract(255, char)
+
+            # Resize the image to 24x44 with black border
+            char_copy[2:42, 2:22] = char
+            char_copy[0:2, :] = 0
+            char_copy[:, 0:2] = 0
+            char_copy[42:44, :] = 0
+            char_copy[:, 22:24] = 0
+
+            img_res.append(char_copy)  # List that stores the character's binary image (unsorted)
+
+    # Return characters on ascending order with respect to the x-coordinate (most-left character first)
+
+    plt.show()
+    # arbitrary function that stores sorted list of character indeces
+    indices = sorted(range(len(x_cntr_list)), key=lambda k: x_cntr_list[k])
+    img_res_copy = []
+    for idx in indices:
+        img_res_copy.append(img_res[idx])  # stores character images according to their index
+    img_res = np.array(img_res_copy)
+
+    return img_res
+
+# Find characters in the resulting images
+def segment_characters(image) :
+
+    # Preprocess cropped license plate image
+    img_lp = cv2.resize(image, (333, 75))
+    img_gray_lp = cv2.cvtColor(img_lp, cv2.COLOR_BGR2GRAY)
+    _, img_binary_lp = cv2.threshold(img_gray_lp, 200, 255, cv2.THRESH_BINARY+cv2.THRESH_OTSU)
+    img_binary_lp = cv2.erode(img_binary_lp, (3,3))
+    img_binary_lp = cv2.dilate(img_binary_lp, (3,3))
+
+    LP_WIDTH = img_binary_lp.shape[0]
+    LP_HEIGHT = img_binary_lp.shape[1]
+
+    # Make borders white
+    img_binary_lp[0:3,:] = 255
+    img_binary_lp[:,0:3] = 255
+    img_binary_lp[72:75,:] = 255
+    img_binary_lp[:,330:333] = 255
+
+    # Estimations of character contours sizes of cropped license plates
+    dimensions = [LP_WIDTH/6,
+                       LP_WIDTH/2,
+                       LP_HEIGHT/10,
+                       2*LP_HEIGHT/3]
+    plt.imshow(img_binary_lp, cmap='gray')
+    plt.title('Contour')
+    plt.show()
+    cv2.imwrite('contour.jpg',img_binary_lp)
+
+    # Get contours within cropped license plate
+    char_list = find_contours(dimensions, img_binary_lp)
+
+    return char_list
+
 
 input_image="/Users/Joe/Documents/Uni_Taipei/Image_Process/License_Plate_Detection/POC/material/successful_detection/plate01.jpg"
-image=import_image(input_image)
-gray,approx,NumberPlateCnt,ROI,image=find_contours(image)
-show_detection(gray,approx,NumberPlateCnt,ROI,image)
+#image=import_image(input_image)
+#gray,approx,NumberPlateCnt,ROI,image=find_contours_by_joe(image)
+#show_detection(gray,approx,NumberPlateCnt,ROI,image)
 
-'''
+
 input_file=input_image
 if os.path.isfile(input_file):
     print(f"The file '{input_file}' exists.")
@@ -180,8 +280,89 @@ ax[0,0].set_title("Detected license plate")
 ax[0,1].imshow(ROI)
 ax[0,1].set_title("Extracted license plate")
 
-#--------------------------------------------------------------------------------------------------------------
+#-------------------- new --------------------
+idx=0
+m=0
+# To find the index of coordinate with maximum y-coordinate
+for i in range(4):
+    if NumberPlateCnt[i][0][1]>m:
+        idx=i
+        m=NumberPlateCnt[i][0][1]
 
+# Assign index to the previous coordinate
+if idx==0:
+    pin=3
+else:
+    pin=idx-1
+
+# Assign index to the next coordinate
+if idx==3:
+    nin=0
+else:
+    nin=idx+1
+
+# Find distances between the acquired coordinate and its previous and next coordinate
+p=dist(NumberPlateCnt[idx][0][0], NumberPlateCnt[pin][0][0], NumberPlateCnt[idx][0][1], NumberPlateCnt[pin][0][1])
+n=dist(NumberPlateCnt[idx][0][0], NumberPlateCnt[nin][0][0], NumberPlateCnt[idx][0][1], NumberPlateCnt[nin][0][1])
+
+# The coordinate that has more distance from the acquired coordinate is the required second bottom-most coordinate
+if p>n:
+    if NumberPlateCnt[pin][0][0]<NumberPlateCnt[idx][0][0]:
+        left=pin
+        right=idx
+    else:
+        left=idx
+        right=pin
+    d=p
+else:
+    if NumberPlateCnt[nin][0][0]<NumberPlateCnt[idx][0][0]:
+        left=nin
+        right=idx
+    else:
+        left=idx
+        right=nin
+    d=n
+print("left=",left,", right=",right)
+
+left_x=NumberPlateCnt[left][0][0]
+left_y=NumberPlateCnt[left][0][1]
+right_x=NumberPlateCnt[right][0][0]
+right_y=NumberPlateCnt[right][0][1]
+print(left_x, left_y, right_x, right_y)
+
+# Finding the angle of rotation by calculating sin of theta
+opp=right_y-left_y
+hyp=((left_x-right_x)**2+(left_y-right_y)**2)**0.5
+sin=opp/hyp
+theta=math.asin(sin)*57.2958
+
+# Rotate the image according to the angle of rotation obtained
+image_center = tuple(np.array(ROI.shape[1::-1]) / 2)
+rot_mat = cv2.getRotationMatrix2D(image_center, theta, 1.0)
+result = cv2.warpAffine(ROI, rot_mat, ROI.shape[1::-1], flags=cv2.INTER_LINEAR)
+
+# The image can be cropped after rotation( since rotated image takes much more height)
+if opp>0:
+    h=result.shape[0]-opp//2
+else:
+    h=result.shape[0]+opp//2
+
+result=result[0:h, :]
+plt.imshow(result)
+plt.title("Plate obtained after rotation")
+plt.show()
+
+char=segment_characters(result)
+
+for i in range(len(char)):
+    plt.subplot(1, len(char), i+1)
+    plt.imshow(char[i], cmap='gray')
+    plt.axis('off')
+plt.show()
+
+
+#--------------------------------------------------------------------------------------------------------------
+'''
 mask = np.zeros(gray.shape, np.uint8)
 new_image = cv2.drawContours(mask, [NumberPlateCnt], 0, 255, -1)
 
