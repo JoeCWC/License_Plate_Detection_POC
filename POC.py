@@ -12,12 +12,18 @@ import glob
 from sklearn.metrics import f1_score
 import tensorflow as tf
 import keras
+from keras import layers
 from tensorflow.python.keras import backend as K
 from tensorflow.python.keras import optimizers
 from tensorflow.python.keras.layers import Flatten, Dense, Conv2D, MaxPooling2D, Input, Dropout
 from tensorflow.python.keras.models import Model, Sequential
 from keras_preprocessing.image import ImageDataGenerator
 from tensorflow.python.keras.optimizer_v2.adam import Adam
+from tensorflow.python.client import device_lib
+
+print(device_lib.list_local_devices())
+tf.config.list_physical_devices("GPU")
+
 
 '''Resolve the issue of 
 AttributeError: module 'tensorflow.python.distribute.input_lib' has no attribute 'DistributedDatasetInterface
@@ -66,7 +72,7 @@ def find_contours_by_joe(image):
     ax[1, 1].set_title('Canny Edges')
 
     fig.tight_layout()
-    plt.show()
+    #plt.show()
 
     # Find contours based on Edges
     cnts = cv2.findContours(edged.copy(), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)[0]
@@ -120,7 +126,7 @@ def show_detection(gray,approx,NumberPlateCnt,ROI,image):
     ax[1, 1].imshow(cv2.cvtColor(res, cv2.COLOR_BGR2RGB))
     ax[1, 1].set_title("Detection: " + text)
     fig.tight_layout()
-    plt.show()
+    #plt.show()
 
 # Distance between (x1, y1) and (x2, y2)
 def dist(x1, x2, y1, y2):
@@ -178,7 +184,7 @@ def find_contours(dimensions, img):
 
     # Return characters on ascending order with respect to the x-coordinate (most-left character first)
 
-    plt.show()
+    #plt.show()
     # arbitrary function that stores sorted list of character indeces
     indices = sorted(range(len(x_cntr_list)), key=lambda k: x_cntr_list[k])
     img_res_copy = []
@@ -214,7 +220,7 @@ def segment_characters(image) :
                        2*LP_HEIGHT/3]
     plt.imshow(img_binary_lp, cmap='gray')
     plt.title('Contour')
-    plt.show()
+    #plt.show()
     cv2.imwrite('contour.jpg',img_binary_lp)
 
     # Get contours within cropped license plate
@@ -261,7 +267,7 @@ ax[1,1].imshow(edged, cmap='gray')
 ax[1,1].set_title('Canny Edges')
 
 fig.tight_layout()
-plt.show()
+#plt.show()
 
 # Find contours based on Edges
 cnts = cv2.findContours(edged.copy(), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)[0]
@@ -361,7 +367,7 @@ else:
 result=result[0:h, :]
 plt.imshow(result)
 plt.title("Plate obtained after rotation")
-plt.show()
+#plt.show()
 
 char=segment_characters(result)
 
@@ -369,20 +375,22 @@ for i in range(len(char)):
     plt.subplot(1, len(char), i+1)
     plt.imshow(char[i], cmap='gray')
     plt.axis('off')
-plt.show()
+#plt.show()
 
-#create a Neural Network
+#---------- create a Neural Network ----------
+# 設定批量生成器
 train_datagen = ImageDataGenerator(rescale=1./255, width_shift_range=0.1, height_shift_range=0.1)
 path = 'data'
 train_generator = train_datagen.flow_from_directory(
         path+'/train',  # this is the target directory
         target_size=(28,28),  # all images will be resized to 28x28
         batch_size=1,
-        class_mode='sparse')
+        class_mode='sparse') # Default 'categorical':2D one-hot encoding / 'sparse':1D 整數編碼標籤
 
 validation_generator = train_datagen.flow_from_directory(
         path+'/val',  # this is the target directory
-        target_size=(28,28),  # all images will be resized to 28x28 batch_size=1,
+        target_size=(28,28),  # all images will be resized to 28x28
+        batch_size=1,
         class_mode='sparse')
 
 K.clear_session()
@@ -396,10 +404,34 @@ model.add(Dropout(0.4))
 model.add(Flatten())
 model.add(Dense(128, activation='relu'))
 model.add(Dense(36, activation='softmax'))
-
-#model.compile(loss='sparse_categorical_crossentropy', optimizer=optimizers.Adam(lr=0.0001), metrics='accuracy')
-model.compile(loss='sparse_categorical_crossentropy', optimizer=Adam(lr=0.0001), metrics='accuracy')
+#model.compile(loss='sparse_categorical_crossentropy', optimizer=keras.optimizers.Adam(lr=0.0001), metrics='accuracy')
+#model.compile(loss='sparse_categorical_crossentropy', optimizer=Adam(lr=0.0001), metrics='accuracy')
+model.compile(loss='sparse_categorical_crossentropy', optimizer=Adam(learning_rate=0.0001), metrics='accuracy')
 model.summary()
+
+
+# 嘗試從 train_generator 中獲取一批數據
+print("[DEBUG]")
+try:
+    # 使用 next() 取出一批數據
+    batch_x, batch_y = next(train_generator)
+
+    # 顯示數據的形狀
+    print("Batch X (input data) shape:", batch_x.shape)
+    print("Batch Y (target labels) shape:", batch_y.shape)
+
+    # 檢查數據是否包含 NaN 或空值
+    print("NaN in X:", np.isnan(batch_x).any())
+    print("NaN in Y:", np.isnan(batch_y).any())
+
+    # 顯示部分數據內容（可選）
+    print("Sample input data (X):", batch_x[0])
+    print("Sample target labels (Y):", batch_y[0])
+
+except StopIteration:
+    print("Error: The train_generator has no more data to yield.")
+except Exception as e:
+    print("An error occurred while fetching data from train_generator:", e)
 
 batch_size = 1
 result = model.fit(
@@ -426,6 +458,22 @@ plt.xlabel('epochs')
 plt.ylabel('loss')
 plt.legend()
 
+# Save the weights
+model.save_weights('./checkpoints/my_checkpoint')
+# Create a new model instance
+loaded_model = Sequential()
+loaded_model.add(Conv2D(16, (22,22), input_shape=(28, 28, 3), activation='relu', padding='same'))
+loaded_model.add(Conv2D(32, (16,16), input_shape=(28, 28, 3), activation='relu', padding='same'))
+loaded_model.add(Conv2D(64, (8,8), input_shape=(28, 28, 3), activation='relu', padding='same'))
+loaded_model.add(Conv2D(64, (4,4), input_shape=(28, 28, 3), activation='relu', padding='same'))
+loaded_model.add(MaxPooling2D(pool_size=(4, 4)))
+loaded_model.add(Dropout(0.4))
+loaded_model.add(Flatten())
+loaded_model.add(Dense(128, activation='relu'))
+loaded_model.add(Dense(36, activation='softmax'))
+
+# Restore the weights
+loaded_model.load_weights('checkpoints/my_checkpoint')
 
 
 
