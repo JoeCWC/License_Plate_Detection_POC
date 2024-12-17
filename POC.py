@@ -19,8 +19,8 @@ from tensorflow.python.keras.models import Model, Sequential
 from keras_preprocessing.image import ImageDataGenerator
 from tensorflow.python.keras.optimizer_v2.adam import Adam
 
-def import_image(input_file):
-    input_file = "/Users/Joe/Documents/Uni_Taipei/Image_Process/License_Plate_Detection/material/test.jpg"
+def import_image(input_image):
+    input_file = input_image
     if os.path.isfile(input_file):
         print(f"The file '{input_file}' exists.")
         image = cv2.imread(input_file)
@@ -78,7 +78,9 @@ def find_contours(image):
         # Drawing the selected contour on the original image
         cv2.drawContours(image, [NumberPlateCnt], -1, (0, 255, 0), 3)
     print(NumberPlateCnt)
+    return gray,approx,NumberPlateCnt,ROI,image
 
+def show_detection(gray,approx,NumberPlateCnt,ROI,image):
     fig, ax = plt.subplots(2, 2, figsize=(10, 7))
     ax[0, 0].imshow(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
     ax[0, 0].set_title("Detected license plate")
@@ -86,8 +88,37 @@ def find_contours(image):
     ax[0, 1].imshow(ROI)
     ax[0, 1].set_title("Extracted license plate")
 
+    mask = np.zeros(gray.shape, np.uint8)
+    new_image = cv2.drawContours(mask, [NumberPlateCnt], 0, 255, -1)
 
-input_file="/Users/Joe/Documents/Uni_Taipei/Image_Process/License_Plate_Detection/material/test.jpg"
+    # cv2.bitwise_and: Applies the mask to the original image, keeping only the region of interest (the license plate or detected object).
+    new_image = cv2.bitwise_and(image, image, mask=mask)
+    ax[1, 0].imshow(cv2.cvtColor(new_image, cv2.COLOR_BGR2RGB))
+    ax[1, 0].set_title("bitwise")
+
+    reader = easyocr.Reader(['en'])
+    # result = reader.readtext(cropped_image)
+    result = reader.readtext(ROI)
+    # print("result: ",result)
+    # print("result[0][0]: ",result[0][0])
+    print("result[0][1]: ", result[0][1])
+    text = result[0][1]
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    res = cv2.putText(image, text=text, org=(approx[1][0][1], approx[0][0][0] + 70), fontFace=font, fontScale=1,color=(0, 255, 0), thickness=2)
+    # res = cv2.rectangle(image, tuple(approx[0][0]), tuple(approx[2][0]), (0, 255, 0), 3)
+    ax[1, 1].imshow(cv2.cvtColor(res, cv2.COLOR_BGR2RGB))
+    ax[1, 1].set_title("Detection: " + text)
+    fig.tight_layout()
+    plt.show()
+
+
+input_image="/Users/Joe/Documents/Uni_Taipei/Image_Process/License_Plate_Detection/POC/material/successful_detection/plate01.jpg"
+image=import_image(input_image)
+gray,approx,NumberPlateCnt,ROI,image=find_contours(image)
+show_detection(gray,approx,NumberPlateCnt,ROI,image)
+
+'''
+input_file=input_image
 if os.path.isfile(input_file):
     print(f"The file '{input_file}' exists.")
 else:
@@ -149,7 +180,7 @@ ax[0,0].set_title("Detected license plate")
 ax[0,1].imshow(ROI)
 ax[0,1].set_title("Extracted license plate")
 
-'''--------------------------------------------------------------------------------------------------------------'''
+#--------------------------------------------------------------------------------------------------------------
 
 mask = np.zeros(gray.shape, np.uint8)
 new_image = cv2.drawContours(mask, [NumberPlateCnt], 0, 255, -1)
@@ -181,3 +212,4 @@ ax[1,1].imshow(cv2.cvtColor(res, cv2.COLOR_BGR2RGB))
 ax[1,1].set_title("Detection: "+text)
 fig.tight_layout()
 plt.show()
+'''
