@@ -19,6 +19,17 @@ from tensorflow.python.keras.models import Model, Sequential
 from keras_preprocessing.image import ImageDataGenerator
 from tensorflow.python.keras.optimizer_v2.adam import Adam
 
+'''Resolve the issue of 
+AttributeError: module 'tensorflow.python.distribute.input_lib' has no attribute 'DistributedDatasetInterface
+from 
+File "/opt/anaconda3/lib/python3.12/site-packages/tensorflow/python/keras/engine/data_adapter.py", line 1696, in _is_distributed_dataset
+    return isinstance(ds, input_lib.DistributedDatasetInterface)'''
+from tensorflow.python.keras.engine import data_adapter
+def _is_distributed_dataset(ds):
+    return isinstance(ds, data_adapter.input_lib.DistributedDatasetSpec)
+data_adapter._is_distributed_dataset = _is_distributed_dataset
+
+
 def import_image(input_image):
     input_file = input_image
     if os.path.isfile(input_file):
@@ -359,6 +370,63 @@ for i in range(len(char)):
     plt.imshow(char[i], cmap='gray')
     plt.axis('off')
 plt.show()
+
+#create a Neural Network
+train_datagen = ImageDataGenerator(rescale=1./255, width_shift_range=0.1, height_shift_range=0.1)
+path = 'data'
+train_generator = train_datagen.flow_from_directory(
+        path+'/train',  # this is the target directory
+        target_size=(28,28),  # all images will be resized to 28x28
+        batch_size=1,
+        class_mode='sparse')
+
+validation_generator = train_datagen.flow_from_directory(
+        path+'/val',  # this is the target directory
+        target_size=(28,28),  # all images will be resized to 28x28 batch_size=1,
+        class_mode='sparse')
+
+K.clear_session()
+model = Sequential()
+model.add(Conv2D(16, (22,22), input_shape=(28, 28, 3), activation='relu', padding='same'))
+model.add(Conv2D(32, (16,16), input_shape=(28, 28, 3), activation='relu', padding='same'))
+model.add(Conv2D(64, (8,8), input_shape=(28, 28, 3), activation='relu', padding='same'))
+model.add(Conv2D(64, (4,4), input_shape=(28, 28, 3), activation='relu', padding='same'))
+model.add(MaxPooling2D(pool_size=(4, 4)))
+model.add(Dropout(0.4))
+model.add(Flatten())
+model.add(Dense(128, activation='relu'))
+model.add(Dense(36, activation='softmax'))
+
+#model.compile(loss='sparse_categorical_crossentropy', optimizer=optimizers.Adam(lr=0.0001), metrics='accuracy')
+model.compile(loss='sparse_categorical_crossentropy', optimizer=Adam(lr=0.0001), metrics='accuracy')
+model.summary()
+
+batch_size = 1
+result = model.fit(
+      train_generator,
+      steps_per_epoch = train_generator.samples // batch_size,
+      validation_data = validation_generator,
+      epochs = 25, verbose=1, callbacks=None)
+
+fig = plt.figure(figsize=(14,5))
+grid=gridspec.GridSpec(ncols=2,nrows=1,figure=fig)
+fig.add_subplot(grid[0])
+plt.plot(result.history['accuracy'], label='training accuracy')
+plt.plot(result.history['val_accuracy'], label='val accuracy')
+plt.title('Accuracy')
+plt.xlabel('epochs')
+plt.ylabel('accuracy')
+plt.legend()
+
+fig.add_subplot(grid[1])
+plt.plot(result.history['loss'], label='training loss')
+plt.plot(result.history['val_loss'], label='val loss')
+plt.title('Loss')
+plt.xlabel('epochs')
+plt.ylabel('loss')
+plt.legend()
+
+
 
 
 #--------------------------------------------------------------------------------------------------------------
