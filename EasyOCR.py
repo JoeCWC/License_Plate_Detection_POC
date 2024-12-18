@@ -17,8 +17,8 @@ def find_contours(image):
     if image is None:
         print(f"[Error] Unable to read image at {image}")
         return False
-    else:
-        print(f"[Info] Start processing {input_image}")
+    #else:
+        #print(f"[Info] Start processing {input_image}")
 
     # Resize image
     image = imutils.resize(image, width=500)
@@ -64,7 +64,7 @@ def find_contours(image):
     #print(f"[DEBUG] {input_image} NumberPlateCnt:\n{NumberPlateCnt}")
     try:
         if NumberPlateCnt is None:
-            print(f"[Error] Contour is {NumberPlateCnt} : {input_image}")
+            print(f"[Error] Contour is {NumberPlateCnt}: {input_image}")
             return False
         elif NumberPlateCnt is not None:
             # Drawing the selected contour on the original image
@@ -95,7 +95,7 @@ def show_detection(gray,approx,NumberPlateCnt,ROI,image,input_image):
     result = reader.readtext(ROI)
 
     try:
-        print(f"Detection: {result[0][1]}")
+        print(f"[Info] Detection: {result[0][1]} from {input_image}")
     except Exception as e:
         print(f"[Error] {e}: {input_image}")
         return False
@@ -106,10 +106,8 @@ def show_detection(gray,approx,NumberPlateCnt,ROI,image,input_image):
     # res = cv2.rectangle(image, tuple(approx[0][0]), tuple(approx[2][0]), (0, 255, 0), 3)
     ax[1, 1].imshow(cv2.cvtColor(res, cv2.COLOR_BGR2RGB))
     ax[1, 1].set_title("Detection: " + text)
-    fig.tight_layout()
-    plt.show()
-
-
+    #fig.tight_layout()
+    #plt.show()
 
 def main(folder_path,image_format):
     image_path = import_image_folder(folder_path+image_format)
@@ -129,12 +127,13 @@ def main(folder_path,image_format):
 
 
 
-#===== Configs =====
+'''===== Configs ====='''
 #folder_path="material/successful_detection"
-folder_path="material/failed_detection"
+#folder_path="material/failed_detection"
+folder_path="material/test"
 image_format="/*"
 
-#===== main =====
+'''===== main ====='''
 if __name__ == "__main__":
     main(folder_path,image_format)
 
