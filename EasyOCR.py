@@ -5,6 +5,7 @@ import cv2
 import imutils
 import matplotlib.pyplot as plt
 import easyocr
+import glob
 
 def import_image(input_image):
     input_file = input_image
@@ -16,38 +17,51 @@ def import_image(input_image):
         print("[ERROR]", f"The file '{input_file}' does not exist.")
         exit()
 
+def import_image_folder(folder_path,image_format):
+    image_folder=glob.glob(folder_path+"/"+image_format)
+    return image_folder
+
+
+
 def find_contours(image):
+    input_image=image
+    image = cv2.imread(image)
+    if image is None:
+        print(f"[Error] Unable to read image at {image}")
+        return False
+    else:
+        print(f"[Info] Start processing {input_image}")
+
     # Resize image
     image = imutils.resize(image, width=500)
     img = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
     # Display the original image
-    fig, ax = plt.subplots(2, 2, figsize=(10, 7))
-    ax[0, 0].imshow(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
-    ax[0, 0].set_title('Original Image')
+    #fig, ax = plt.subplots(2, 2, figsize=(10, 7))
+    #ax[0, 0].imshow(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+    #ax[0, 0].set_title('Original Image')
 
     # RGB to Gray scale conversion
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    ax[0, 1].imshow(gray, cmap='gray')
-    ax[0, 1].set_title('Grayscale Conversion')
+    #ax[0, 1].imshow(gray, cmap='gray')
+    #ax[0, 1].set_title('Grayscale Conversion')
 
     # Noise removal with iterative bilateral filter(removes noise while preserving edges)
     gray = cv2.bilateralFilter(gray, 11, 17, 17)
-    ax[1, 0].imshow(gray, cmap='gray')
-    ax[1, 0].set_title('Bilateral Filter')
+    #ax[1, 0].imshow(gray, cmap='gray')
+    #ax[1, 0].set_title('Bilateral Filter')
 
     # Find Edges of the grayscale image
     edged = cv2.Canny(gray, 170, 200)
-    ax[1, 1].imshow(edged, cmap='gray')
-    ax[1, 1].set_title('Canny Edges')
+    #ax[1, 1].imshow(edged, cmap='gray')
+    #ax[1, 1].set_title('Canny Edges')
 
-    fig.tight_layout()
+    #fig.tight_layout()
     #plt.show()
 
     # Find contours based on Edges
     cnts = cv2.findContours(edged.copy(), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)[0]
-    cnts = sorted(cnts, key=cv2.contourArea, reverse=True)[
-           :30]  # sort contours based on their area keeping minimum required area as '30' (anything smaller than this will not be considered)
+    cnts = sorted(cnts, key=cv2.contourArea, reverse=True)[:30]  # sort contours based on their area keeping minimum required area as '30' (anything smaller than this will not be considered)
     NumberPlateCnt = None  # we currently have no Number plate contour
 
     # loop over our contours to find the best possible approximate contour of number plate
@@ -60,12 +74,15 @@ def find_contours(image):
             x, y, w, h = cv2.boundingRect(c)
             ROI = img[y:y + h, x:x + w]
             break
-
-    if NumberPlateCnt is not None:
-        # Drawing the selected contour on the original image
-        cv2.drawContours(image, [NumberPlateCnt], -1, (0, 255, 0), 3)
-    print(NumberPlateCnt)
-    return gray,approx,NumberPlateCnt,ROI,image
+    #print(f"[DEBUG] NumberPlateCnt:\n{NumberPlateCnt}")
+    try:
+        if NumberPlateCnt is not None:
+            # Drawing the selected contour on the original image
+            cv2.drawContours(image, [NumberPlateCnt], -1, (0, 255, 0), 3)
+            show_detection(gray,approx,NumberPlateCnt,ROI,image)
+    except Exception as e:
+        print(f"[ERROR] No contours found {e}")
+        return False
 
 def show_detection(gray,approx,NumberPlateCnt,ROI,image):
     fig, ax = plt.subplots(2, 2, figsize=(10, 7))
@@ -84,24 +101,46 @@ def show_detection(gray,approx,NumberPlateCnt,ROI,image):
     ax[1, 0].set_title("bitwise")
 
     reader = easyocr.Reader(['en'])
-    # result = reader.readtext(cropped_image)
     result = reader.readtext(ROI)
-    # print("result: ",result)
-    # print("result[0][0]: ",result[0][0])
-    print("result[0][1]: ", result[0][1])
+
+
+    print(f"Detection: {result[0][1]}")
     text = result[0][1]
     font = cv2.FONT_HERSHEY_SIMPLEX
     res = cv2.putText(image, text=text, org=(approx[1][0][1], approx[0][0][0] + 70), fontFace=font, fontScale=1,color=(0, 255, 0), thickness=2)
     # res = cv2.rectangle(image, tuple(approx[0][0]), tuple(approx[2][0]), (0, 255, 0), 3)
     ax[1, 1].imshow(cv2.cvtColor(res, cv2.COLOR_BGR2RGB))
     ax[1, 1].set_title("Detection: " + text)
-    fig.tight_layout()
+    #fig.tight_layout()
     #plt.show()
 
-input_image="/Users/Joe/Documents/Uni_Taipei/Image_Process/License_Plate_Detection/POC/material/successful_detection/plate01.jpg"
-image=import_image(input_image)
-gray,approx,NumberPlateCnt,ROI,image=find_contours(image)
-show_detection(gray,approx,NumberPlateCnt,ROI,image)
+
+def main(folder_path,image_format):
+    image_path = import_image_folder(folder_path,image_format)
+    successful_detection=[]
+    failed_detection=[]
+    for image in image_path:
+        success = find_contours(image)
+        if success == False:
+            failed_detection.append(image)
+            print(f"Skipping {image_path} due to processing failure.")
+            continue
+        else:
+            successful_detection.append(image)
+    print(f"Successful: {successful_detection}")
+    print(f"Failed: {failed_detection}")
+
+folder_path="material/successful_detection"
+image_format="*.jpg"
+
+main(folder_path,image_format)
+
+#import_image_folder(folder_path,image_format)
+#input_image="/Users/Joe/Documents/Uni_Taipei/Image_Process/License_Plate_Detection/POC/material/successful_detection/plate01.jpg"
+#input_image="/Users/Joe/Documents/Uni_Taipei/Image_Process/License_Plate_Detection/POC/material/failed_detection/plate05.jpg"
+#image=import_image(input_image)
+#gray,approx,NumberPlateCnt,ROI,image=find_contours(image)
+#show_detection(gray,approx,NumberPlateCnt,ROI,image)
 
 
 
