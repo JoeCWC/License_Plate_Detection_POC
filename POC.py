@@ -409,7 +409,6 @@ model.add(Dense(36, activation='softmax'))
 model.compile(loss='sparse_categorical_crossentropy', optimizer=Adam(learning_rate=0.0001), metrics='accuracy')
 model.summary()
 
-
 # 嘗試從 train_generator 中獲取一批數據
 print("[DEBUG]")
 try:
@@ -433,12 +432,43 @@ except StopIteration:
 except Exception as e:
     print("An error occurred while fetching data from train_generator:", e)
 
-batch_size = 1
-result = model.fit(
-      train_generator,
+batch_size = 25
+result = model.fit(train_generator,
       steps_per_epoch = train_generator.samples // batch_size,
       validation_data = validation_generator,
-      epochs = 25, verbose=1, callbacks=None)
+      epochs = 25,
+      verbose=1,
+      workers=1,
+      use_multiprocessing=False
+      )
+
+
+'''#from GPT
+K.clear_session()
+model = Sequential()
+model.add(Conv2D(16, (3,3), input_shape=(28, 28, 3), activation='relu', padding='same'))
+model.add(Conv2D(32, (3,3), activation='relu', padding='same'))
+model.add(MaxPooling2D(pool_size=(2, 2)))
+model.add(Dropout(0.4))
+model.add(Flatten())
+model.add(Dense(128, activation='relu'))
+model.add(Dense(36, activation='softmax'))
+model.compile(loss='sparse_categorical_crossentropy', optimizer=Adam(learning_rate=0.0001), metrics=['accuracy'])
+model.summary()
+
+batch_size = 16
+result = model.fit(
+    train_generator,
+    steps_per_epoch=len(train_generator),
+    validation_data=validation_generator,
+    validation_steps=len(validation_generator),
+    epochs=25,
+    verbose=2,
+    workers=1,
+    use_multiprocessing=False
+)
+#'''
+
 
 fig = plt.figure(figsize=(14,5))
 grid=gridspec.GridSpec(ncols=2,nrows=1,figure=fig)
