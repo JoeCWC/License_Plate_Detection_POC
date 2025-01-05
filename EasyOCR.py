@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import easyocr
 import glob
 import logging
+import argparse
 
 def import_image_folder(folder_path):
     try:
@@ -82,7 +83,7 @@ def find_contours(image,output_path):
         return False
 
 def show_detection(gray,NumberPlateCnt,ROI,image,input_image,output_path):
-    fig, ax = plt.subplots(1, 1, figsize=(10, 7))
+    #fig, ax = plt.subplots(2, 2, figsize=(10, 7))
     #ax[0, 0].imshow(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
     #ax[0, 0].set_title("Detected license plate")
     '''Find bounding box and extract ROI (Region of Interest)'''
@@ -111,18 +112,35 @@ def show_detection(gray,NumberPlateCnt,ROI,image,input_image,output_path):
         cv2.putText(image, text=text, org=(text_x,text_y), fontFace=font,fontScale=1, color=(0, 255, 0), thickness=2)
         output = output_path+"/"+text+".jpg"
         cv2.imwrite(output, image)
+        # ==========
+        #ax[1, 1].imshow(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+        #ax[1, 1].set_title("Detection: " + text)
+        #fig.tight_layout()
+        #plt.show()
 
         return result[0][1]
     except Exception as e:
         logging.error(f"{e}:{input_image}")
         return False
-    #==========
-    #ax[0, 0].imshow(cv2.cvtColor(res, cv2.COLOR_BGR2RGB))
-    #ax[0, 0].set_title("Detection: " + text)
-    #fig.tight_layout()
-    #plt.show()
+
 
 def main(folder_path,image_format,output_path):
+    try:
+        if os.path.exists(folder_path):
+            print(f"[INFO] Input folder: {folder_path}")
+        else:
+            print(f"[ERROR] Input folder: {folder_path} does not exists")
+            exit()
+    except Exception as e:
+        print(f"{e}")
+    try:
+        if os.path.exists(output_path):
+            print(f"[INFO] Output folder: {output_path}")
+        else:
+            print(f"[ERROR] Output folder: {output_path} does not exists")
+            exit()
+    except Exception as e:
+        print(f"{e}")
     image_path = import_image_folder(folder_path+image_format)
     successful_detection=[]
     failed_detection=[]
@@ -143,10 +161,14 @@ def main(folder_path,image_format,output_path):
     print(f"Number of successful: {number_of_successful}")
     print(f"Number of failed: {number_of_failed}")
 
-'''===== Configs ====='''
-folder_path="material/successful_detection"
-image_format="/*.jpg"
-output_path="output"
+'''===== Parser for configs ====='''
+ap = argparse.ArgumentParser()
+ap.add_argument("-f", "--input_folder", required=True, help="Path to image folder")
+ap.add_argument("-o", "--output_folder", required=True,help="Path to result output")
+args = vars(ap.parse_args())
+folder_path=args["input_folder"]
+image_format="/*"
+output_path=args["output_folder"]
 
 '''===== main ====='''
 if __name__ == "__main__":
